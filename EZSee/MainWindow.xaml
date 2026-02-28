@@ -4,9 +4,242 @@
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:EZSee"
+        xmlns:converters="clr-namespace:EZSee.Converters"
+        xmlns:vm="clr-namespace:EZSee.ViewModels"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800">
-    <Grid>
+        Title="EZSee" Height="768" Width="1024"
+        Background="{DynamicResource BackgroundBrush}"
+        AllowDrop="True"
+        Drop="Window_Drop"
+        DragOver="Window_DragOver"
+        KeyDown="Window_KeyDown"
+        MouseWheel="Window_MouseWheel"
+        Closing="Window_Closing"
+        Loaded="Window_Loaded">
 
+    <Window.Resources>
+        <converters:BoolToVisibilityConverter x:Key="BoolToVisibility" />
+        <converters:ViewModeToVisibilityConverter x:Key="ViewModeToVisibility" />
+    </Window.Resources>
+
+    <Window.InputBindings>
+        <KeyBinding Key="O" Modifiers="Ctrl" Command="{Binding OpenCommand}" />
+        <KeyBinding Key="Right" Command="{Binding NextImageCommand}" />
+        <KeyBinding Key="Left" Command="{Binding PreviousImageCommand}" />
+        <KeyBinding Key="Home" Command="{Binding FirstImageCommand}" />
+        <KeyBinding Key="End" Command="{Binding LastImageCommand}" />
+        <KeyBinding Key="OemPlus" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Key="Add" Command="{Binding ZoomInCommand}" />
+        <KeyBinding Key="OemMinus" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="Subtract" Command="{Binding ZoomOutCommand}" />
+        <KeyBinding Key="I" Command="{Binding ToggleInfoOverlayCommand}" />
+    </Window.InputBindings>
+
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <!-- Toolbar -->
+        <Border Grid.Row="0" Background="{DynamicResource ToolbarBrush}" Padding="4,2"
+                x:Name="ToolbarPanel">
+            <WrapPanel>
+                <Button Content="📂 Open" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding OpenCommand}" ToolTip="Open file (Ctrl+O)" />
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2" />
+                <Button Content="◀" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding PreviousImageCommand}" ToolTip="Previous (←)" />
+                <TextBlock Text="{Binding NavigationText}" VerticalAlignment="Center"
+                           Foreground="{DynamicResource ForegroundBrush}" Margin="8,0" FontSize="13" />
+                <Button Content="▶" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding NextImageCommand}" ToolTip="Next (→)" />
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2" />
+                <Button Content="🔍+" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ZoomInCommand}" ToolTip="Zoom in (+)" />
+                <Button Content="🔍-" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ZoomOutCommand}" ToolTip="Zoom out (-)" />
+                <Button Content="⊞ Fit" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding FitToWindowCommand}" ToolTip="Fit to window" />
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2" />
+                <Button Content="🖼 View" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ToggleViewModeCommand}" ToolTip="Toggle view (Enter)" />
+                <Button Content="⛶ Full" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ToggleFullScreenCommand}" ToolTip="Full screen (F)" />
+                <Button Content="▶ Slide" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ToggleSlideshowCommand}" ToolTip="Slideshow (Space)" />
+                <Separator Style="{StaticResource {x:Static ToolBar.SeparatorStyleKey}}" Margin="4,2" />
+                <Button Content="ℹ Info" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ToggleInfoOverlayCommand}" ToolTip="Image info (I)" />
+                <Button Content="🎨 Theme" Style="{DynamicResource ToolbarButton}"
+                        Command="{Binding ToggleThemeCommand}" ToolTip="Toggle theme" />
+            </WrapPanel>
+        </Border>
+
+        <!-- Main Content Area -->
+        <Grid Grid.Row="1">
+            <!-- Single Image View -->
+            <Grid Visibility="{Binding CurrentViewMode, Converter={StaticResource ViewModeToVisibility}, ConverterParameter=SingleImage}">
+                <Border ClipToBounds="True" Background="{DynamicResource BackgroundBrush}"
+                        MouseLeftButtonDown="ImageArea_MouseLeftButtonDown"
+                        MouseLeftButtonUp="ImageArea_MouseLeftButtonUp"
+                        MouseMove="ImageArea_MouseMove"
+                        x:Name="ImageContainer">
+                    <Image x:Name="MainImage"
+                           Source="{Binding CurrentImage}"
+                           Stretch="Uniform"
+                           RenderTransformOrigin="0.5,0.5"
+                           RenderOptions.BitmapScalingMode="HighQuality">
+                        <Image.RenderTransform>
+                            <TransformGroup>
+                                <ScaleTransform x:Name="ImageScale"
+                                                ScaleX="{Binding ZoomLevel}"
+                                                ScaleY="{Binding ZoomLevel}" />
+                                <TranslateTransform x:Name="ImageTranslate"
+                                                    X="{Binding PanX}"
+                                                    Y="{Binding PanY}" />
+                            </TransformGroup>
+                        </Image.RenderTransform>
+                    </Image>
+                </Border>
+
+                <!-- Image Info Overlay -->
+                <Border Background="{DynamicResource OverlayBackgroundBrush}"
+                        VerticalAlignment="Bottom" HorizontalAlignment="Left"
+                        Padding="12,8" Margin="8" CornerRadius="6"
+                        Visibility="{Binding ShowInfoOverlay, Converter={StaticResource BoolToVisibility}}">
+                    <StackPanel>
+                        <TextBlock Text="{Binding CurrentImageInfo.FileName}" Foreground="White"
+                                   FontSize="14" FontWeight="SemiBold" />
+                        <TextBlock Foreground="#CCC" FontSize="12" Margin="0,2,0,0">
+                            <Run Text="{Binding CurrentImageInfo.DimensionsDisplay, Mode=OneWay}" />
+                            <Run Text=" | " />
+                            <Run Text="{Binding CurrentImageInfo.Format, Mode=OneWay}" />
+                            <Run Text=" | " />
+                            <Run Text="{Binding CurrentImageInfo.FileSizeDisplay, Mode=OneWay}" />
+                        </TextBlock>
+                        <TextBlock Foreground="#AAA" FontSize="11" Margin="0,2,0,0"
+                                   Text="{Binding CurrentImageInfo.FilePath}" TextTrimming="CharacterEllipsis"
+                                   MaxWidth="500" />
+                    </StackPanel>
+                </Border>
+
+                <!-- Slideshow indicator -->
+                <Border Background="{DynamicResource OverlayBackgroundBrush}"
+                        VerticalAlignment="Top" HorizontalAlignment="Right"
+                        Padding="8,4" Margin="8" CornerRadius="4"
+                        Visibility="{Binding IsSlideshowPlaying, Converter={StaticResource BoolToVisibility}}">
+                    <TextBlock Text="▶ Slideshow" Foreground="White" FontSize="12" />
+                </Border>
+
+                <!-- No image placeholder -->
+                <TextBlock Text="Drag &amp; drop an image or press Ctrl+O to open"
+                           HorizontalAlignment="Center" VerticalAlignment="Center"
+                           Foreground="{DynamicResource ForegroundBrush}" FontSize="16"
+                           Opacity="0.5">
+                    <TextBlock.Style>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Visibility" Value="Collapsed" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding CurrentImage}" Value="{x:Null}">
+                                    <Setter Property="Visibility" Value="Visible" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </TextBlock.Style>
+                </TextBlock>
+            </Grid>
+
+            <!-- Folder/Thumbnail View -->
+            <Grid Visibility="{Binding CurrentViewMode, Converter={StaticResource ViewModeToVisibility}, ConverterParameter=FolderView}">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+
+                <!-- Breadcrumb path -->
+                <Border Grid.Row="0" Background="{DynamicResource SurfaceBrush}" Padding="8,4">
+                    <TextBlock Text="{Binding CurrentFolderPath}"
+                               Foreground="{DynamicResource ForegroundBrush}"
+                               FontSize="13" VerticalAlignment="Center"
+                               TextTrimming="CharacterEllipsis" />
+                </Border>
+
+                <!-- Thumbnail Grid -->
+                <ListBox Grid.Row="1"
+                         ItemsSource="{Binding Thumbnails}"
+                         Background="{DynamicResource BackgroundBrush}"
+                         BorderThickness="0"
+                         ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                         ScrollViewer.VerticalScrollBarVisibility="Auto"
+                         x:Name="ThumbnailGrid">
+                    <ListBox.ItemsPanel>
+                        <ItemsPanelTemplate>
+                            <WrapPanel IsItemsHost="True" />
+                        </ItemsPanelTemplate>
+                    </ListBox.ItemsPanel>
+                    <ListBox.ItemTemplate>
+                        <DataTemplate>
+                            <Border Style="{DynamicResource ThumbnailBorder}"
+                                    Width="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    Cursor="Hand"
+                                    MouseLeftButtonDown="Thumbnail_Click">
+                                <StackPanel>
+                                    <Image Source="{Binding Thumbnail}"
+                                           Height="{Binding DataContext.ThumbnailSize, RelativeSource={RelativeSource AncestorType=Window}}"
+                                           Stretch="Uniform" Margin="4"
+                                           RenderOptions.BitmapScalingMode="HighQuality" />
+                                    <TextBlock Text="{Binding FileName}"
+                                               Foreground="{DynamicResource ForegroundBrush}"
+                                               FontSize="11" TextTrimming="CharacterEllipsis"
+                                               HorizontalAlignment="Center" Margin="4,0,4,4" />
+                                </StackPanel>
+                            </Border>
+                        </DataTemplate>
+                    </ListBox.ItemTemplate>
+                </ListBox>
+            </Grid>
+        </Grid>
+
+        <!-- Status Bar -->
+        <Border Grid.Row="2" Background="{DynamicResource StatusBarBrush}" Padding="8,3"
+                x:Name="StatusBarPanel">
+            <Grid>
+                <TextBlock Text="{Binding StatusText}" Foreground="White" FontSize="12"
+                           HorizontalAlignment="Left" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <TextBlock Foreground="White" FontSize="12" Margin="0,0,12,0">
+                        <Run Text="Zoom: " />
+                        <Run Text="{Binding ZoomLevel, StringFormat=P0}" />
+                    </TextBlock>
+                    <TextBlock Text="{Binding CurrentViewMode}" Foreground="White" FontSize="12" />
+                </StackPanel>
+            </Grid>
+        </Border>
     </Grid>
+
+    <!-- Context Menu -->
+    <Window.ContextMenu>
+        <ContextMenu>
+            <MenuItem Header="Open File..." Command="{Binding OpenCommand}" InputGestureText="Ctrl+O" />
+            <Separator />
+            <MenuItem Header="Next Image" Command="{Binding NextImageCommand}" InputGestureText="→" />
+            <MenuItem Header="Previous Image" Command="{Binding PreviousImageCommand}" InputGestureText="←" />
+            <Separator />
+            <MenuItem Header="Zoom In" Command="{Binding ZoomInCommand}" InputGestureText="+" />
+            <MenuItem Header="Zoom Out" Command="{Binding ZoomOutCommand}" InputGestureText="-" />
+            <MenuItem Header="Fit to Window" Command="{Binding FitToWindowCommand}" />
+            <Separator />
+            <MenuItem Header="Toggle View" Command="{Binding ToggleViewModeCommand}" InputGestureText="Enter" />
+            <MenuItem Header="Full Screen" Command="{Binding ToggleFullScreenCommand}" InputGestureText="F" />
+            <MenuItem Header="Slideshow" Command="{Binding ToggleSlideshowCommand}" InputGestureText="Space" />
+            <MenuItem Header="Image Info" Command="{Binding ToggleInfoOverlayCommand}" InputGestureText="I" />
+            <Separator />
+            <MenuItem Header="Copy Path" Click="CopyPath_Click" />
+            <MenuItem Header="Reveal in Explorer" Click="RevealInExplorer_Click" />
+            <Separator />
+            <MenuItem Header="Toggle Theme" Command="{Binding ToggleThemeCommand}" />
+        </ContextMenu>
+    </Window.ContextMenu>
 </Window>
