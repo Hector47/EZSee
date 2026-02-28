@@ -17,7 +17,10 @@ namespace EZSee.Converters
 
         public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            return value is Visibility v && v == Visibility.Visible;
+            bool result = value is Visibility v && v == Visibility.Visible;
+            if (parameter is string s && s == "Invert")
+                result = !result;
+            return result;
         }
     }
 }
